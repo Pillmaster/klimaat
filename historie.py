@@ -40,8 +40,8 @@ def load_full_history_data(start_date_str, end_date_str):
         "longitude": LON,
         "start_date": start_date_str, 
         "end_date": end_date_str,     
-        # snow_depth TOEGEVOEGD
-        "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,snow_depth", 
+        # snow_depth VERVANGEN door snowfall_sum
+        "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,snowfall_sum", 
         "timezone": TIMEZONE,
         "format": "csv"
     }
@@ -61,7 +61,7 @@ def load_full_history_data(start_date_str, end_date_str):
             'temperature_2m_min (°C)': 'Temp_Low_C',  
             'temperature_2m_mean (°C)': 'Temp_Avg_C',
             'precipitation_sum (mm)': 'Precip_Sum_mm',
-            'snow_depth (m)': 'Snow_Depth_m' # Nieuwe kolomnaam
+            'snowfall_sum (mm)': 'Snow_Sum_mm' # Nieuwe kolomnaam (mm water-equivalent)
         })
         
         df_hist['Date'] = pd.to_datetime(df_hist['Date'])
@@ -96,15 +96,7 @@ def safe_format_precip(x):
     except (ValueError, TypeError):
         return "" 
 
-def safe_format_snow(x):
-    """Formats numeric value x (in meters) to 'X.X cm', returns empty string for NaN or non-numeric types."""
-    if pd.isna(x):
-        return ""
-    try:
-        # Converteer meters naar centimeters
-        return f"{float(x) * 100:.1f} cm"
-    except (ValueError, TypeError):
-        return "" 
+# safe_format_snow is verwijderd omdat we nu sneeuwval (mm) gebruiken, waarvoor safe_format_precip volstaat.
 
 def find_consecutive_periods(df_filtered, min_days, value_column):
     """
@@ -143,9 +135,9 @@ def find_consecutive_periods(df_filtered, min_days, value_column):
     if value_column in TEMP_COLUMNS:
         periods['Gemiddelde_Waarde_Periode'] = periods['Gemiddelde_Waarde_Periode'].map(safe_format_temp)
         periods = periods.rename(columns={'Gemiddelde_Waarde_Periode': 'Gemiddelde Temp Periode'})
-    elif value_column == 'Precip_Sum_mm':
+    elif value_column in ['Precip_Sum_mm', 'Snow_Sum_mm']: # Sneeuwval toegevoegd
         periods['Gemiddelde_Waarde_Periode'] = periods['Gemiddelde_Waarde_Periode'].map(safe_format_precip)
-        periods = periods.rename(columns={'Gemiddelde_Waarde_Periode': 'Gemiddelde Neerslag Periode'})
+        periods = periods.rename(columns={'Gemiddelde_Waarde_Periode': 'Gemiddelde Neerslag/Sneeuwval Periode'})
 
     total_periods = len(periods)
     
@@ -163,7 +155,7 @@ def find_extreme_days(df_daily_summary, top_n=10):
 
     results = {}
 
-    # Configuratie voor de Algemene Extremen tab (INCLUSIEF SNEEUWDEK)
+    # Configuratie voor de Algemene Extremen tab (INCLUSIEF SNEEUWVAL)
     extremes_config = {
         'hoogste_max_temp': ('Temp_High_C', False, 'Max Temp (°C)', 'Warmste Dagen (Max Temp)'), 
         'laagste_min_temp': ('Temp_Low_C', True, 'Min Temp (°C)', 'Koudste Nachten (Min Temp)'),    
@@ -171,7 +163,7 @@ def find_extreme_days(df_daily_summary, top_n=10):
         'laagste_max_temp': ('Temp_High_C', True, 'Max Temp (°C)', 'Koudste Dagen (Max Temp)'),   
         'hoogste_neerslag': ('Precip_Sum_mm', False, 'Neerslag (mm)', 'Natste Dagen (Neerslag)'), 
         'grootste_range': ('Temp_Range_C', False, 'Range (°C)', 'Grootste Dagelijkse Range'),
-        'grootste_sneeuwdek': ('Snow_Depth_m', False, 'Sneeuwdek (cm)', 'Dagen met Grootste Sneeuwdek') # TOEGEVOEGD
+        'grootste_sneeuwval': ('Snow_Sum_mm', False, 'Sneeuwval (mm)', 'Dagen met Grootste Sneeuwval') # Vroeger snow_depth
     }
 
     for key, (column, ascending, display_col, title) in extremes_config.items():
@@ -190,7 +182,7 @@ def find_extreme_days(df_daily_summary, top_n=10):
             'Temp_Avg_C': 'Gem Temp (°C)',
             'Temp_Range_C': 'Range (°C)',
             'Precip_Sum_mm': 'Neerslag (mm)',
-            'Snow_Depth_m': 'Sneeuwdek (cm)' # TOEGEVOEGD
+            'Snow_Sum_mm': 'Sneeuwval (mm)' # Vroeger Snow_Depth_m
         }
         
         df_display = df_display.rename(columns=rename_dict)
@@ -203,10 +195,10 @@ def find_extreme_days(df_daily_summary, top_n=10):
         if 'Neerslag (mm)' in df_display.columns:
              df_display['Neerslag (mm)'] = df_display['Neerslag (mm)'].map(safe_format_precip)
              
-        if 'Sneeuwdek (cm)' in df_display.columns: # TOEGEVOEGD
-            df_display['Sneeuwdek (cm)'] = df_display['Sneeuwdek (cm)'].map(safe_format_snow)
+        if 'Sneeuwval (mm)' in df_display.columns: # Sneeuwval toegevoegd
+            df_display['Sneeuwval (mm)'] = df_display['Sneeuwval (mm)'].map(safe_format_precip)
 
-        final_cols_order = ['Datum', 'Max Temp (°C)', 'Min Temp (°C)', 'Gem Temp (°C)', 'Neerslag (mm)', 'Sneeuwdek (cm)', 'Range (°C)'] # Sneeuwdek toegevoegd aan volgorde
+        final_cols_order = ['Datum', 'Max Temp (°C)', 'Min Temp (°C)', 'Gem Temp (°C)', 'Neerslag (mm)', 'Sneeuwval (mm)', 'Range (°C)'] # Sneeuwval in volgorde
         
         df_final_display = df_display[[c for c in final_cols_order if c in df_display.columns]].copy()
         
@@ -265,7 +257,7 @@ def find_daily_extremes(df_full, target_month, target_day, top_n=10):
     
     results = {}
 
-    # Configuratie van alle 8 gevraagde extremen + Sneeuwdek in logische volgorde
+    # Configuratie van alle 8 gevraagde extremen + Sneeuwval in logische volgorde
     extremes_config = {
         # Warmte Extremen
         'hoogste_max_temp': ('Temp_High_C', False, 'Max Temp (°C)', 'Warmste Dag (Max Temp)'), 
@@ -280,7 +272,7 @@ def find_daily_extremes(df_full, target_month, target_day, top_n=10):
         # Overige Extremen
         'grootste_range': ('Temp_Range_C', False, 'Dagelijkse Gang (°C)', 'Grootste Dagelijkse Gang'),
         'hoogste_neerslag': ('Precip_Sum_mm', False, 'Neerslag (mm)', 'Hoogste Neerslag'),
-        'grootste_sneeuwdek': ('Snow_Depth_m', False, 'Sneeuwdek (cm)', 'Grootste Sneeuwdek (Dikte)') # TOEGEVOEGD
+        'grootste_sneeuwval': ('Snow_Sum_mm', False, 'Sneeuwval (mm)', 'Grootste Sneeuwval (Som)') # Vroeger snow_depth
     }
 
     for key, (column, ascending, display_col, title) in extremes_config.items():
@@ -300,7 +292,7 @@ def find_daily_extremes(df_full, target_month, target_day, top_n=10):
             'Temp_Avg_C': 'Gem Temp (°C)',
             'Temp_Range_C': 'Dagelijkse Gang (°C)', # Aangepaste kolomnaam
             'Precip_Sum_mm': 'Neerslag (mm)',
-            'Snow_Depth_m': 'Sneeuwdek (cm)' # TOEGEVOEGD
+            'Snow_Sum_mm': 'Sneeuwval (mm)' # Vroeger Snow_Depth_m
         }
         
         df_display = df_display.rename(columns=rename_dict)
@@ -314,8 +306,8 @@ def find_daily_extremes(df_full, target_month, target_day, top_n=10):
         if 'Neerslag (mm)' in df_display.columns:
              df_display['Neerslag (mm)'] = df_display['Neerslag (mm)'].map(safe_format_precip)
              
-        if 'Sneeuwdek (cm)' in df_display.columns: # TOEGEVOEGD
-            df_display['Sneeuwdek (cm)'] = df_display['Sneeuwdek (cm)'].map(safe_format_snow)
+        if 'Sneeuwval (mm)' in df_display.columns: # Sneeuwval toegevoegd
+            df_display['Sneeuwval (mm)'] = df_display['Sneeuwval (mm)'].map(safe_format_precip)
 
         # Bepaal de definitieve kolomvolgorde (jaar, dan temp/neerslag/sneeuw kolommen)
         final_cols_order = ['Jaar'] + [
@@ -324,7 +316,7 @@ def find_daily_extremes(df_full, target_month, target_day, top_n=10):
             'Gem Temp (°C)', 
             'Dagelijkse Gang (°C)', 
             'Neerslag (mm)',
-            'Sneeuwdek (cm)' # TOEGEVOEGD
+            'Sneeuwval (mm)' # Sneeuwval toegevoegd
         ]
         
         df_final_display = df_display[[c for c in final_cols_order if c in df_display.columns]].copy()
@@ -390,8 +382,8 @@ with tab_history:
         horizontal=True
     )
 
-    # Sneeuwdek toegevoegd aan de selectie-opties
-    temp_type_options = ["Max Temp (Temp_High_C)", "Min Temp (Temp_Low_C)", "Gemiddelde Temp (Temp_Avg_C)", "Neerslag (Precip_Sum_mm)", "Sneeuwdek (Snow_Depth_m)"]
+    # Sneeuwval toegevoegd aan de selectie-opties
+    temp_type_options = ["Max Temp (Temp_High_C)", "Min Temp (Temp_Low_C)", "Gemiddelde Temp (Temp_Avg_C)", "Neerslag (Precip_Sum_mm)", "Sneeuwval (Snow_Sum_mm)"]
     selected_temp_type = st.selectbox(
         "Kies de te analyseren variabele:",
         options=temp_type_options,
@@ -408,8 +400,8 @@ with tab_history:
         value_unit = "mm"
         default_temp = 1.0
     elif 'Snow' in value_column:
-        value_unit = "cm"
-        default_temp = 10.0
+        value_unit = "mm" # Sneeuwval is ook in mm water-equivalent
+        default_temp = 5.0
         
     comparison = "Lager dan (<=)" if 'Temp_Low' in value_column else "Hoger dan (>=)"
     temp_threshold = 0.0
@@ -428,26 +420,14 @@ with tab_history:
         
         with col_thres:
             
-            # Pas drempelwaarde aan als het Sneeuwdek is (m -> cm weergave in UI)
-            step_val = 0.1
-            if 'Snow' in value_column:
-                # Gebruik in de UI centimeters voor de drempel, maar we filteren de data in meters
-                display_threshold = st.number_input(
-                    f"Drempel ({value_unit}):", 
-                    value=default_temp, 
-                    step=1.0 if default_temp >= 1.0 else 0.1, 
-                    key="threshold_hist_new"
-                )
-                # Omgerekende drempel in meters voor de filterlogica
-                temp_threshold = display_threshold / 100 
-            else:
-                 temp_threshold = st.number_input(
-                    f"Drempel ({value_unit}):", 
-                    value=default_temp, 
-                    step=step_val, 
-                    key="threshold_hist_new"
-                )
-                 display_threshold = temp_threshold # Gebruik de echte drempel voor weergave
+            # De drempel is altijd in de meeteenheid van de API data (mm of °C)
+            temp_threshold = st.number_input(
+                f"Drempel ({value_unit}):", 
+                value=default_temp, 
+                step=0.1, 
+                key="threshold_hist_new"
+            )
+            display_threshold = temp_threshold
         
         with col_days_or_group:
             if filter_mode == "Aaneengesloten Periode":
@@ -552,7 +532,7 @@ with tab_history:
         filtered_data = df_filtered_time[df_filtered_time[value_column] <= temp_threshold]
         
     if filtered_data.empty and filter_mode != "Hellmann Getal Berekenen" and filter_mode != "Overzicht per Jaar/Maand":
-        st.info(f"Geen dagen gevonden die voldoen aan de criteria: {value_column.replace('_',' ')} {comparison} {display_threshold}{value_unit}.") # Gebruik display_threshold
+        st.info(f"Geen dagen gevonden die voldoen aan de criteria: {selected_temp_type.split(' (')[0]} {comparison} {display_threshold}{value_unit}.") # Gebruik display_threshold
         if filter_mode == "Overzicht per Jaar/Maand":
              st.stop()
     
@@ -633,11 +613,11 @@ with tab_history:
             for col in TEMP_COLUMNS:
                 filtered_data_display[col] = filtered_data_display[col].map(safe_format_temp)
             filtered_data_display['Neerslag (mm)'] = filtered_data_display['Precip_Sum_mm'].map(safe_format_precip)
-            filtered_data_display['Sneeuwdek (cm)'] = filtered_data_display['Snow_Depth_m'].map(safe_format_snow) # TOEGEVOEGD
+            filtered_data_display['Sneeuwval (mm)'] = filtered_data_display['Snow_Sum_mm'].map(safe_format_precip) # Aangepast naar sneeuwval
             
             df_final = filtered_data_display.rename(columns={'Date': 'Datum'})
             
-            cols_to_show = ['Datum'] + [c for c in df_final.columns if c.startswith('Temp') or c == 'Neerslag (mm)' or c == 'Sneeuwdek (cm)']
+            cols_to_show = ['Datum'] + [c for c in df_final.columns if c.startswith('Temp') or c == 'Neerslag (mm)' or c == 'Sneeuwval (mm)']
             
             st.dataframe(df_final[cols_to_show].set_index('Datum'), use_container_width=True)
 
@@ -660,8 +640,8 @@ with tab_history:
             cols_to_show = ['StartDatum', 'EindDatum', 'Duur']
             if 'Gemiddelde Temp Periode' in periods_df.columns:
                 cols_to_show.append('Gemiddelde Temp Periode')
-            if 'Gemiddelde Neerslag Periode' in periods_df.columns:
-                cols_to_show.append('Gemiddelde Neerslag Periode')
+            if 'Gemiddelde Neerslag/Sneeuwval Periode' in periods_df.columns:
+                cols_to_show.append('Gemiddelde Neerslag/Sneeuwval Periode')
 
             st.dataframe(periods_df[cols_to_show].set_index('StartDatum'), use_container_width=True)
             
