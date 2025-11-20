@@ -339,6 +339,78 @@ def find_daily_extremes(df_full, target_month, target_day, top_n=10):
 
     return results
 
+def get_last_year_data(df_full):
+    """
+    Haalt de data van 1 jaar geleden op en het historisch gemiddelde voor die kalenderdag.
+    Retourneert (datum_vorig_jaar, data_vorig_jaar_df, historisch_gem_df).
+    
+    BIJGEWERKTE LOGICA: Gebruikt de huidige datum (today) - 1 jaar als referentie.
+    """
+    today = datetime.date.today()
+    
+    # 1. Bepaal de 'Vorig Jaar' datum: Huidige kalenderdag - 1 jaar.
+    try:
+        date_last_year = today.replace(year=today.year - 1)
+    except ValueError:
+        # Dit gebeurt alleen op 29 februari in een niet-schrikkeljaar. Val terug op 28 februari.
+        if today.month == 2 and today.day == 29:
+             date_last_year = today.replace(year=today.year - 1, day=28)
+        else:
+            # Onwaarschijnlijk, maar veiligheidshalve
+            raise
+
+    # 2. Controleer of deze datum in de dataset is 
+    # De data index is een DatetimeIndex, dus we converteren de datum naar een string/timestamp
+    if str(date_last_year) not in df_full.index:
+         # Als de data van een jaar geleden niet in de dataset zit.
+         return date_last_year, pd.DataFrame(), pd.DataFrame() 
+
+    # Vorig Jaar Data
+    df_last_year = df_full.loc[[str(date_last_year)]].copy()
+
+    # Historisch Gemiddelde
+    
+    # Voor 29 februari: alleen 29 feb data gebruiken. Anders: alle jaren (behalve vorig jaar)
+    # Let op: de analyse voor het historisch gemiddelde moet de oorspronkelijke maand/dag gebruiken
+    # om de volledige geschiedenis voor die kalenderdag te omvatten.
+    
+    # Als de oorspronkelijke datum 29-02 was, maar we terugvielen op 28-02 (in de 'vorig jaar' data):
+    # dan moeten we hier de oorspronkelijke datum van de gebruiker (huidige maand/dag) gebruiken voor het historisch gemiddelde.
+    # We gebruiken altijd de maand/dag van de huidige datum voor het historisch gemiddelde.
+    
+    target_month_hist = today.month
+    target_day_hist = today.day
+    
+    if target_month_hist == 2 and target_day_hist == 29:
+        df_hist_day = df_full[
+            (df_full.index.month == 2) & 
+            (df_full.index.day == 29)
+        ]
+    else:
+        df_hist_day = df_full[
+            (df_full.index.month == target_month_hist) & 
+            (df_full.index.day == target_day_hist)
+        ]
+    
+    # Exclusief het jaar van vorig jaar uit het gemiddelde, indien aanwezig
+    df_hist_day = df_hist_day[df_hist_day.index.year != date_last_year.year]
+    
+    if df_hist_day.empty:
+         return date_last_year, df_last_year, pd.DataFrame() 
+         
+    # Bereken de gemiddelden
+    historical_avg = df_hist_day[[
+        'Temp_High_C', 
+        'Temp_Low_C', 
+        'Temp_Avg_C', 
+        'Precip_Sum_mm', 
+        'Snowfall_Sum_cm'
+    ]].mean().to_frame().T
+    
+    historical_avg.index = ['Historisch Gemiddelde']
+
+    return date_last_year, df_last_year, historical_avg
+
 # 3. Streamlit Applicatie Hoofdsectie
 # ===============================================================================
 
@@ -375,7 +447,94 @@ if MAX_COMPARISON_YEAR >= max_data_year:
     MAX_COMPARISON_YEAR = max_data_year - 1
 
 # --- Hoofdnavigatie ---
-tab_history, tab_extremes, tab_hellmann, tab_daily_extremes = st.tabs(["🔍 Historische Zoeker", "🏆 Extremen (Top 10)", "🧊 Hellmann Getal (Seizoenen)", "📆 Historische Dag"]) 
+# BIJGEWERKT: Nieuw tabblad toegevoegd
+tab_last_year, tab_history, tab_extremes, tab_hellmann, tab_daily_extremes = st.tabs([
+    "🕰️ Vorig Jaar", 
+    "🔍 Historische Zoeker", 
+    "🏆 Extremen (Top 10)", 
+    "🧊 Hellmann Getal (Seizoenen)", 
+    "📆 Historische Dag"
+]) 
+
+
+# -------------------------------------------------------------------
+# --- NIEUW: Tab 0: Vorig Jaar ---
+# -------------------------------------------------------------------
+
+with tab_last_year:
+    # GEWIJZIGD: Nieuwe titel
+    st.header("🕰️ Het weer precies een jaar geleden")
+    # Aangepaste info-tekst omdat er geen vergelijking meer is
+    st.info("Toont de weersdata van de huidige kalenderdag - 1 jaar, indien beschikbaar in de dataset.")
+    
+    # df_historical_avg wordt nog steeds berekend, maar wordt niet gebruikt
+    date_last_year, df_last_year, df_historical_avg = get_last_year_data(df_full_history)
+
+    st.subheader(f"Geselecteerde Datum: **{date_last_year.strftime('%d %B %Y')}**")
+    st.markdown("---")
+    
+    if df_last_year.empty:
+        st.warning(f"Geen data beschikbaar voor **{date_last_year.strftime('%d %B %Y')}**. Dit komt doordat de data van één jaar geleden nog niet in de dataset (t/m {max_date_hist_dt.strftime('%d-%m-%Y')}) is opgenomen, of door een schrikkeldag (29 februari) waarbij de data ontbreekt.")
+    else:
+        
+        # Gegevens van vorig jaar
+        last_year_data = df_last_year.iloc[0]
+        
+        # Presentatie in kolommen (Metric stijl)
+        
+        st.subheader("Overzicht in Cijfers")
+        
+        col1, col2, col3 = st.columns(3)
+        col4, col5, col_empty = st.columns(3)
+
+        # 1. Gemiddelde Temperatuur
+        with col1:
+            ly_temp_avg = last_year_data['Temp_Avg_C']
+            st.metric(
+                label="Gemiddelde Temperatuur",
+                # GEWIJZIGD: Emoticon toegevoegd, delta verwijderd
+                value=f"🌡️ {safe_format_temp(ly_temp_avg)}"
+            )
+
+        # 2. Maximale Temperatuur
+        with col2:
+            ly_temp_high = last_year_data['Temp_High_C']
+            st.metric(
+                label="Maximale Temperatuur",
+                # GEWIJZIGD: Emoticon toegevoegd, delta verwijderd
+                value=f"☀️ {safe_format_temp(ly_temp_high)}"
+            )
+
+        # 3. Minimale Temperatuur
+        with col3:
+            ly_temp_low = last_year_data['Temp_Low_C']
+            st.metric(
+                label="Minimale Temperatuur",
+                # GEWIJZIGD: Emoticon toegevoegd, delta verwijderd
+                value=f"🥶 {safe_format_temp(ly_temp_low)}"
+            )
+            
+        # 4. Neerslag
+        with col4:
+            ly_precip = last_year_data['Precip_Sum_mm']
+            st.metric(
+                label="Neerslag",
+                # GEWIJZIGD: Emoticon toegevoegd, delta verwijderd
+                value=f"🌧️ {safe_format_precip(ly_precip)}"
+            )
+            
+        # 5. Sneeuwval
+        with col5:
+            ly_snow = last_year_data['Snowfall_Sum_cm']
+            st.metric(
+                label="Sneeuwval",
+                # GEWIJZIGD: Emoticon toegevoegd, delta verwijderd
+                value=f"❄️ {safe_format_snowfall_cm(ly_snow)}"
+            )
+        
+        st.markdown("---")
+        
+        # VISUALISATIE BLOK VERWIJDERD
 
 
 # -------------------------------------------------------------------
@@ -542,15 +701,26 @@ with tab_history:
         st.stop()
     
     # Filter de data op basis van drempel
-    if comparison == "Hoger dan (>=)":
-        filtered_data = df_filtered_time[df_filtered_time[value_column] >= temp_threshold]
-    else:
-        filtered_data = df_filtered_time[df_filtered_time[value_column] <= temp_threshold]
-        
-    if filtered_data.empty and filter_mode != "Hellmann Getal Berekenen" and filter_mode != "Overzicht per Jaar/Maand":
-        st.info(f"Geen dagen gevonden die voldoen aan de criteria: {selected_temp_type.split(' (')[0]} {comparison} {display_threshold}{value_unit}.") # Gebruik display_threshold
-        if filter_mode == "Overzicht per Jaar/Maand":
-             st.stop()
+    if filter_mode != "Hellmann Getal Berekenen" and filter_mode != "Overzicht per Jaar/Maand":
+        if comparison == "Hoger dan (>=)":
+            filtered_data = df_filtered_time[df_filtered_time[value_column] >= temp_threshold]
+        else:
+            filtered_data = df_filtered_time[df_filtered_time[value_column] <= temp_threshold]
+            
+        if filtered_data.empty:
+            st.info(f"Geen dagen gevonden die voldoen aan de criteria: {selected_temp_type.split(' (')[0]} {comparison} {display_threshold}{value_unit}.") # Gebruik display_threshold
+            st.stop()
+    elif filter_mode == "Overzicht per Jaar/Maand":
+         # Voor Overzicht per Jaar/Maand moet er eerst gefilterd worden voor de count, maar de filtered_data is nog niet nodig voor de 'empty' check hierboven.
+         if comparison == "Hoger dan (>=)":
+             filtered_data = df_filtered_time[df_filtered_time[value_column] >= temp_threshold]
+         else:
+             filtered_data = df_filtered_time[df_filtered_time[value_column] <= temp_threshold]
+             
+         if filtered_data.empty:
+              st.info(f"Geen dagen gevonden die voldoen aan de criteria: {selected_temp_type.split(' (')[0]} {comparison} {display_threshold}{value_unit}.")
+              st.stop()
+    
     
     
     if filter_mode == "Overzicht per Jaar/Maand":
