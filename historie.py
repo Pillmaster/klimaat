@@ -447,13 +447,14 @@ if MAX_COMPARISON_YEAR >= max_data_year:
     MAX_COMPARISON_YEAR = max_data_year - 1
 
 # --- Hoofdnavigatie ---
-# BIJGEWERKT: Nieuw tabblad toegevoegd
-tab_last_year, tab_history, tab_extremes, tab_hellmann, tab_daily_extremes = st.tabs([
+# BIJGEWERKT: Nieuw tabblad 'tab_charts' toegevoegd
+tab_last_year, tab_history, tab_extremes, tab_hellmann, tab_daily_extremes, tab_charts = st.tabs([
     "🕰️ Vorig Jaar", 
     "🔍 Historische Zoeker", 
     "🏆 Extremen (Top 10)", 
     "🧊 Hellmann Getal (Seizoenen)", 
-    "📆 Historische Dag"
+    "📆 Historische Dag",
+    "📈 Grafieken (Jaar/Maand)" # <-- Nieuwe tab-titel
 ]) 
 
 
@@ -742,7 +743,8 @@ with tab_history:
         
         # --- Tabelweergave ---
         st.markdown("##### Tabellarisch Overzicht")
-        st.dataframe(df_grouped.set_index(x_col), use_container_width=True)
+        # CORRECTIE: use_container_width=True -> width='stretch'
+        st.dataframe(df_grouped.set_index(x_col), width='stretch')
         
         # --- Staafgrafiek ---
         st.markdown("##### Visualisatie")
@@ -766,12 +768,13 @@ with tab_history:
         )
 
         fig.update_layout(xaxis_title=None)
-        st.plotly_chart(fig, use_container_width=True)
+        # CORRECTIE: use_container_width=True -> width='stretch'
+        st.plotly_chart(fig, width='stretch')
 
 
     elif filter_mode == "Hellmann Getal Berekenen":
         st.subheader("❄️ Hellmann Getal Berekening")
-        st.info("Het Hellmann Getal is de absolute som van de Gemiddelde Dagtemperatuur op dagen met een Gemiddelde Temp $\\le 0.0$ °C.")
+        st.info("Het Hellmann Getal is de absolute som van de Gemiddelde Dagtemperatuur op dagen met een Gemiddelde Temp $\le 0.0$ °C.")
 
         df_hellmann_days = df_filtered_time[df_filtered_time['Temp_Avg_C'] <= 0.0]
         
@@ -780,14 +783,15 @@ with tab_history:
             hellmann_score = df_hellmann_days['Hellmann_Bijdrage'].sum()
             hellmann_results = pd.DataFrame({
                 'Periode': [f"{df_filtered_time.index.min().strftime('%d-%m-%Y')} t/m {df_filtered_time.index.max().strftime('%d-%m-%Y')}"],
-                'Aantal Dagen $\\le 0.0$ °C': [len(df_hellmann_days)],
+                'Aantal Dagen $\le 0.0$ °C': [len(df_hellmann_days)],
                 'Hellmann Getal': [f"{hellmann_score:.1f}"]
             }).set_index('Periode')
             
-            st.dataframe(hellmann_results, use_container_width=True)
+            # CORRECTIE: use_container_width=True -> width='stretch'
+            st.dataframe(hellmann_results, width='stretch')
             
         else:
-            st.info("Geen dagen met Gemiddelde Temp $\\le 0.0$ °C gevonden in de geselecteerde periode. Hellmann Getal: 0.0")
+            st.info("Geen dagen met Gemiddelde Temp $\le 0.0$ °C gevonden in de geselecteerde periode. Hellmann Getal: 0.0")
 
         
     elif filter_mode == "Losse Dagen (Waarde)":
@@ -806,7 +810,8 @@ with tab_history:
             # Sneeuwdek (cm) is verwijderd
             cols_to_show = ['Datum'] + [c for c in df_final.columns if c.startswith('Temp') or c == 'Neerslag (mm)' or c == 'Sneeuwval (cm)']
             
-            st.dataframe(df_final[cols_to_show].set_index('Datum'), use_container_width=True)
+            # CORRECTIE: use_container_width=True -> width='stretch'
+            st.dataframe(df_final[cols_to_show].set_index('Datum'), width='stretch')
 
     elif filter_mode == "Aaneengesloten Periode":
         
@@ -830,7 +835,8 @@ with tab_history:
             if 'Gemiddelde Neerslag Periode' in periods_df.columns:
                 cols_to_show.append('Gemiddelde Neerslag Periode')
 
-            st.dataframe(periods_df[cols_to_show].set_index('StartDatum'), use_container_width=True)
+            # CORRECTIE: use_container_width=True -> width='stretch'
+            st.dataframe(periods_df[cols_to_show].set_index('StartDatum'), width='stretch')
             
         else:
             st.warning("Geen aaneengesloten periodes gevonden die voldoen aan de criteria.")
@@ -857,7 +863,8 @@ with tab_extremes:
             if df_result.empty:
                 st.warning("Geen data gevonden voor deze categorie.")
             else:
-                st.dataframe(df_result, use_container_width=True)
+                # CORRECTIE: use_container_width=True -> width='stretch'
+                st.dataframe(df_result, width='stretch')
 
 
 # -------------------------------------------------------------------
@@ -866,7 +873,7 @@ with tab_extremes:
 
 with tab_hellmann:
     st.header("🧊 Hellmann Getal per Seizoen (Juli - Juni)")
-    st.info(f"Analyse van het Hellmann Getal (som van absolute dagelijkse gemiddelde temperaturen $\\le 0.0$ °C) per seizoen. Een seizoen 'YYYY' loopt van **Juli YYYY-1** t/m **Juni YYYY**.")
+    st.info("Analyse van het Hellmann Getal (som van absolute dagelijkse gemiddelde temperaturen $\\le 0.0$ °C) per seizoen. Een seizoen 'YYYY' loopt van **Juli YYYY-1** t/m **Juni YYYY**.")
 
     df_hellmann_seasonal = calculate_seasonal_hellmann(df_full_history)
 
@@ -912,7 +919,8 @@ with tab_hellmann:
             xaxis_title=None, 
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        # CORRECTIE: use_container_width=True -> width='stretch'
+        st.plotly_chart(fig, width='stretch')
         
         # 3. Toon de data in een tabel (Sorteerbaar)
         st.subheader("Data: Hellmann Getal per Seizoen (Sorteerbaar)")
@@ -920,9 +928,10 @@ with tab_hellmann:
         column_config = {
             "Hellmann Getal": st.column_config.NumberColumn("Hellmann Getal", format="%.1f")
         }
+        # CORRECTIE: use_container_width=True -> width='stretch'
         st.dataframe(
             df_hellmann_seasonal.set_index('Seizoen Jaar'), 
-            use_container_width=True,
+            width='stretch',
             column_config=column_config
         )
 
@@ -1001,4 +1010,186 @@ with tab_daily_extremes:
                 if df_result.empty:
                     st.info("Geen data beschikbaar voor deze extreme categorie op deze dag.")
                 else:
-                    st.dataframe(df_result, use_container_width=True)
+                    # CORRECTIE: use_container_width=True -> width='stretch'
+                    st.dataframe(df_result, width='stretch')
+
+# -------------------------------------------------------------------
+# --- BIJGEWERKT: Tab 5: Grafieken (Jaar/Maand) ---
+# -------------------------------------------------------------------
+
+with tab_charts:
+    st.header("📈 Dagelijkse Weervisualisatie (Jaar/Maand)")
+    st.info(f"Kies een **volledig jaar** of een **specifieke maand** in een jaar om de dagelijkse temperatuur, neerslag en sneeuwval te visualiseren. Dataset loopt van {START_DATE_FULL[:4]} t/m {max_data_year}.")
+
+    # Bepaal het bereik van jaren
+    min_year = df_full_history.index.min().year
+    max_year = df_full_history.index.max().year
+
+    # 1. Selectie Jaar/Maand modus
+    chart_mode = st.radio(
+        "Kies de te visualiseren periode:", 
+        ["Volledig Jaar", "Specifieke Maand"], 
+        key="chart_mode_select",
+        horizontal=True
+    )
+    
+    col_year_sel, col_month_sel = st.columns(2)
+
+    with col_year_sel:
+        # 1. Jaar selectie
+        selected_year = st.selectbox(
+            "Kies een Jaar:",
+            options=list(range(min_year, max_year + 1)),
+            index=len(range(min_year, max_year + 1)) - 1, # Standaard het meest recente jaar
+            key="chart_year_selector"
+        )
+    
+    selected_month_int = None
+    if chart_mode == "Specifieke Maand":
+        with col_month_sel:
+            # 2. Maand selectie
+            selected_month_int = st.selectbox(
+                "Kies een Maand:",
+                options=list(MONTH_NAMES.keys()),
+                format_func=lambda x: MONTH_NAMES[x],
+                index=datetime.datetime.now().month - 1,
+                key="chart_month_selector"
+            )
+
+    # Filter de data
+    if selected_year is not None:
+        
+        # Filter eerst op jaar
+        df_chart_data = df_full_history[df_full_history.index.year == selected_year].copy()
+        
+        # Logica om de X-as en titel correct in te stellen
+        if chart_mode == "Specifieke Maand" and selected_month_int is not None:
+             df_chart_data = df_chart_data[df_chart_data.index.month == selected_month_int]
+             period_title = f"{MONTH_NAMES[selected_month_int]} {selected_year}"
+             # Creëer een simpele X-as voor de dag van de maand
+             df_chart_data['X_Axis_Label'] = df_chart_data.index.day # Gebruik dagnummer
+             x_col = 'X_Axis_Label'
+             x_title = 'Dag van de Maand'
+        else:
+             period_title = f"Volledig Jaar {selected_year}"
+             # BIJGEWERKT: Gebruik de Datum als X-as voor Plotly.
+             # Plotly zal de datums automatisch groeperen op maand/jaar, wat de gewenste weergave oplevert.
+             df_chart_data['X_Axis_Label'] = df_chart_data.index 
+             x_col = 'X_Axis_Label'
+             x_title = 'Datum' # Dit wordt later in Plotly overruled door de tijd-as
+
+        if df_chart_data.empty:
+            st.warning(f"Geen data beschikbaar voor {period_title}.")
+        else:
+            
+            st.subheader(f"Overzicht voor **{period_title}** ({len(df_chart_data)} dagen)")
+            st.markdown("---")
+
+            # --- 3. Plot Temperatuur ---
+            st.markdown("#### 🌡️ Dagelijkse Temperatuur (°C)")
+            
+            df_temp_plot = df_chart_data[['Temp_High_C', 'Temp_Avg_C', 'Temp_Low_C', x_col]].copy()
+            
+            df_temp_long = pd.melt(
+                df_temp_plot, 
+                id_vars=[x_col], 
+                value_vars=['Temp_High_C', 'Temp_Avg_C', 'Temp_Low_C'],
+                var_name='Temperatuur Type', 
+                value_name='Temperatuur (°C)'
+            )
+            
+            temp_labels = {
+                'Temp_High_C': 'Max Temp',
+                'Temp_Avg_C': 'Gemiddelde Temp',
+                'Temp_Low_C': 'Min Temp'
+            }
+            df_temp_long['Temperatuur Type'] = df_temp_long['Temperatuur Type'].map(temp_labels)
+
+            fig_temp = px.line(
+                df_temp_long,
+                x=x_col,
+                y='Temperatuur (°C)',
+                color='Temperatuur Type',
+                title=f"Dagelijkse Temperaturen in {period_title}",
+                labels={x_col: x_title, 'Temperatuur (°C)': 'Temperatuur (°C)'},
+                color_discrete_map={
+                    'Max Temp': 'red',
+                    'Gemiddelde Temp': 'blue',
+                    'Min Temp': 'lightblue'
+                }
+            )
+            
+            if chart_mode == "Volledig Jaar":
+                 # Voor Volledig Jaar: gebruik de datum in de tooltip en stel de as type in
+                 fig_temp.update_xaxes(
+                     tickformat="%b", # Toont de afgekorte maandnaam
+                     tickmode='auto',
+                     title_text="Maand"
+                 )
+                 fig_temp.update_traces(hovertemplate='%{x|%d %b}<br>Temperatuur Type: %{full_text}<br>Temperatuur: %{y:.1f} °C<extra></extra>')
+            else:
+                 # Voor Specifieke Maand: toon de dag van de maand
+                 fig_temp.update_xaxes(title_text=x_title)
+                 fig_temp.update_traces(hovertemplate='Dag %{x}<br>Temperatuur Type: %{full_text}<br>Temperatuur: %{y:.1f} °C<extra></extra>')
+            
+            fig_temp.update_layout(hovermode="x unified")
+            # CORRECTIE: use_container_width=True -> width='stretch'
+            st.plotly_chart(fig_temp, width='stretch')
+
+            # --- 4. Plot Neerslag & Sneeuwval ---
+            st.markdown("#### 🌧️ Neerslag (mm)")
+
+            # Neerslag plot (Bar chart)
+            fig_precip = px.bar(
+                df_chart_data,
+                x=x_col,
+                y='Precip_Sum_mm',
+                title=f"Dagelijkse Neerslag in {period_title}",
+                labels={x_col: x_title, 'Precip_Sum_mm': 'Neerslag (mm)'},
+                color_discrete_sequence=['#4682B4']
+            )
+            
+            if chart_mode == "Volledig Jaar":
+                 # Voor Volledig Jaar: gebruik de datum in de tooltip en stel de as type in
+                 fig_precip.update_xaxes(
+                     tickformat="%b", # Toont de afgekorte maandnaam
+                     tickmode='auto',
+                     title_text="Maand"
+                 )
+                 fig_precip.update_traces(hovertemplate='%{x|%d %b}<br>Neerslag: %{y:.1f} mm<extra></extra>')
+            else:
+                 # Voor Specifieke Maand: toon de dag van de maand
+                 fig_precip.update_xaxes(title_text=x_title)
+                 fig_precip.update_traces(hovertemplate='Dag %{x}<br>Neerslag: %{y:.1f} mm<extra></extra>')
+                 
+            fig_precip.update_layout(hovermode="x unified")
+            # CORRECTIE: use_container_width=True -> width='stretch'
+            st.plotly_chart(fig_precip, width='stretch')
+            
+            # Sneeuwval plot (Bar chart)
+            st.markdown("#### ❄️ Sneeuwval (cm)")
+            fig_snowfall = px.bar(
+                df_chart_data,
+                x=x_col,
+                y='Snowfall_Sum_cm',
+                title=f"Dagelijkse Sneeuwval in {period_title}",
+                labels={x_col: x_title, 'Snowfall_Sum_cm': 'Sneeuwval (cm)'},
+                color_discrete_sequence=['#A8DDE4']
+            )
+
+            if chart_mode == "Volledig Jaar":
+                 # Voor Volledig Jaar: gebruik de datum in de tooltip en stel de as type in
+                 fig_snowfall.update_xaxes(
+                     tickformat="%b", # Toont de afgekorte maandnaam
+                     tickmode='auto',
+                     title_text="Maand"
+                 )
+                 fig_snowfall.update_traces(hovertemplate='%{x|%d %b}<br>Sneeuwval: %{y:.1f} cm<extra></extra>')
+            else:
+                 # Voor Specifieke Maand: toon de dag van de maand
+                 fig_snowfall.update_xaxes(title_text=x_title)
+                 fig_snowfall.update_traces(hovertemplate='Dag %{x}<br>Sneeuwval: %{y:.1f} cm<extra></extra>')
+
+            fig_snowfall.update_layout(hovermode="x unified")
+            # CORRECTIE: use_container_width=True -> width='stretch'
+            st.plotly_chart(fig_snowfall, width='stretch')
